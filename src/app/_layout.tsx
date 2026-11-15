@@ -1,18 +1,41 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import "../../global.css";
+import { Stack } from "expo-router";
+import { useState, useEffect } from "react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { Auth } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+export default function RootLayout() {
+  const [usuario, setUsuario] = useState<User | null>(null);
+  const [cargando, setCargando] = useState(true);
 
-SplashScreen.preventAutoHideAsync();
+  useEffect(() => {
+    const offline = onAuthStateChanged(auth, (user)=> {
+      setUsuario(user);
+      setCargando(false);
+    });
+  return offline;
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
-  );
+}, []);
+
+if (cargando) return null;
+const conectado = usuario !== null;
+
+return (
+  <Stack screenOptions={{ headerShown: false }}>
+    <Stack.Protected guard={!conectado}>
+      <Stack.Screen name="ingreso"/>
+      <Stack.Screen name="registro"/>
+    </Stack.Protected>
+
+    <Stack.Protected guard={conectado}>
+      <Stack.Screen name="(authorized)" />
+    </Stack.Protected>
+  </Stack>
+
+);
+  
+  
+  
+  
 }
