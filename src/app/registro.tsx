@@ -22,8 +22,8 @@ export default function Registro() {
                 usuario: usuario,
                 correo:correo,
                 xp:0,
-                rachaActual:0,
-                mejorRacha:0,
+                rachaAc:0,
+                rachaMe:0,
                 amigos:[],
                 creado: serverTimestamp()
             });

@@ -283,7 +283,7 @@ export default function Tareas() {
 
                         {diaD.length === 0 && (
                             <View className="items-center rounded-2xl border-2 border-dashed p-6" style={{ borderColor: C.gris }}>
-                                <Text style={{ color: C.gris }}>Nada para este día 🎉</Text>
+                                <Text style={{ color: C.gris }}>Nada para este día</Text>
                                 <Text className="text-xs" style={{ color: C.gris }}>Toca + para agregar meta</Text>
                             </View>
                         )}

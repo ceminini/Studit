@@ -5,6 +5,8 @@ import { router } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, Path, Pattern, Rect } from "react-native-svg";
+import { actualizarR } from "@/lib/racha";
+import { hoy, ayer } from "@/lib/fecha";
 
 // Paleta del diseño
 const C = {
@@ -30,10 +32,7 @@ type ramo = { id: string; nombres: string; color: string }
 const tiempo = 10 * 60
 const xpPomodoro = 10;
 
-const fecha = () => {
-    const t = new Date();
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-};
+
 
 export default function Pomodoro() {
     const [segundo, setSegundo] = useState(tiempo)
@@ -58,7 +57,7 @@ export default function Pomodoro() {
                 ramoId: ramoE!.id,
                 ramoNombre: ramoE!.nombres,
                 minutos: minutos,
-                dia: fecha(),
+                dia: hoy(),
                 creado: serverTimestamp(),
             });
             if (completo) {
@@ -70,10 +69,13 @@ export default function Pomodoro() {
                 minutos: increment(minutos)
             });
             setMensaje(completo ? `Fin +${xpPomodoro} XP` : `Guardado: ${minutos} min de ${ramoE!.nombres}`);
+            await actualizarR(uid);
         } catch (e: any) {
             setMensaje(e.code)
         }
         setSegundo(tiempo);
+
+        
     };
 
     useEffect(() => {
