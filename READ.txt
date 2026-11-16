@@ -1,0 +1,2 @@
+//CALENDARIO
+npx expo install react-native-calendars

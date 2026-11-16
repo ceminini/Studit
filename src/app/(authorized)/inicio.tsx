@@ -27,9 +27,23 @@ export default function Inicio() {
                 <Text className="mt-4 underline">Ir al perfil</Text>
             </Pressable>
 
+            <Pressable onPress={() => router.push("/tareas")}>
+                <Text className="mt-4 underline">Tareas </Text>
+            </Pressable>
+
+
+
             <Pressable onPress={() => router.push("/materias")}>
                 <Text className="mt-4 underline">Mis ramos</Text>
             </Pressable>
+            <Pressable onPress={() => router.push("/pomodoro")}>
+                <Text className="mt-4 underline">Pomodoro </Text>
+            </Pressable>
         </View>
+
+
+
     );
+
+
 }

@@ -5,8 +5,9 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 
-type ramo = { id: string, nombres: string, color: string }
-const colores = ["#ADE3DC", "#F9CDA6", "#E1D8F5", "#FBE7A1"]
+type ramo = { id: string, nombres: string, color: string, minutos?: number }
+const colores = ["#ADE3DC", "#F9CDA6", "#E1D8F5", "#FBE7A1"];
+const horas = (m: number) => `${Math.floor(m / 60)}h ${m % 60}min`;
 
 export default function Materias() {
     const [ramos, setRamos] = useState<ramo[]>([]);
@@ -31,31 +32,31 @@ export default function Materias() {
 
 
     //Para agregar y editar materias 
-const agregarR = async () => {
-    if (!nombres.trim()) return setError("Ingresa tu materia");
-    
-    try {
-        if (idEdit) {
-            await updateDoc(doc(db, "usuarios", uid, "ramos", idEdit), {
-                nombres: nombres.trim(),
-                color: color,
-            });
-        } else {
-            await addDoc(ramosR, { 
-                nombres: nombres.trim(), 
-                color: color 
-            });
-        }
+    const agregarR = async () => {
+        if (!nombres.trim()) return setError("Ingresa tu materia");
 
-        setError("");
-        setNombres("");
-        setidEdit(null);
-        cargarR();
-        
-    } catch (e: any) {
-        setError(e.code || e.message);
-    }
-};
+        try {
+            if (idEdit) {
+                await updateDoc(doc(db, "usuarios", uid, "ramos", idEdit), {
+                    nombres: nombres.trim(),
+                    color: color,
+                });
+            } else {
+                await addDoc(ramosR, {
+                    nombres: nombres.trim(),
+                    color: color
+                });
+            }
+
+            setError("");
+            setNombres("");
+            setidEdit(null);
+            cargarR();
+
+        } catch (e: any) {
+            setError(e.code || e.message);
+        }
+    };
 
     //Borra maaterias
     const borrarR = async (id: string) => {
@@ -77,6 +78,10 @@ const agregarR = async () => {
                             <Pressable onPress={() => borrarR(r.id)}>
                                 <Text className="underline">Quitar</Text>
                             </Pressable>
+                        </View>
+                        <View>
+                            <Text className="text-lg font-bold">{r.nombres}</Text>
+                            <Text>{horas(r.minutos ?? 0)} estudiadas</Text>
                         </View>
                     </View>
                 ))}
