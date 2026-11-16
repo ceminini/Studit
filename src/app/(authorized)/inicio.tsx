@@ -1,17 +1,95 @@
+import { ayer, hoy } from "@/lib/fecha";
 import { auth, db } from "@/lib/firebase";
 import { rachaViva } from "@/lib/racha";
 import { router, useFocusEffect } from "expo-router";
-import { doc, getDoc } from "firebase/firestore";
-import { useCallback, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { collection, doc, getDoc, getDocs, increment, updateDoc } from "firebase/firestore";
+import { ReactNode, useCallback, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
+
+type ramo = { id: string; nombres: string; color: string; meta?: number };
+type sesion = { ramoId: string; minutos: number; dia: string };
+type tarea = { id: string; titulo: string; ramoNombre: string; ramoId: string; fecha: string; listo: boolean; xp: number; hora?: string };
+
+// Diseno (misma paleta que tareas.tsx y materias.tsx)
+const C = {
+    papel: "#F7F5EE",
+    cuadricula: "#E9E6DA",
+    tinta: "#1A1A1A",
+    gris: "#6B6B66",
+    verde: "#2E6B5E",
+    boton: "#A6E0D7",
+    coral: "#E8664A",
+    durazno: "#FBDCCD",
+    blanco: "#FFFFFF",
+};
+
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+// niveles: cada nivel pide XP_NIVEL de experiencia
+const XP_NIVEL = 250;
+const TITULOS = ["Recién llegado", "Aprendiz", "Curioso", "Constante", "Ratón de biblioteca", "Cerebrito", "Leyenda del ramo"];
+const XP_POMODORO = 10; // igual que xpPomodoro en pomodoro.tsx
+const META_POMODOROS = 2;
+
+const miles = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+const corto = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}`;
+const formatear = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// para contar las horas de la semana
+const lunes = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return formatear(d);
+};
+
+// semana del semestre: el 1er semestre parte en marzo y el 2do en agosto (igual que en materias.tsx)
+const semanaSemestre = () => {
+    const ahora = new Date();
+    const inicio = new Date(ahora.getFullYear(), ahora.getMonth() >= 6 ? 7 : 2, 1);
+    inicio.setDate(inicio.getDate() - ((inicio.getDay() + 6) % 7)); // al lunes de esa semana
+    return Math.floor((ahora.getTime() - inicio.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+};
+
+const vence = (f: string) => {
+    if (f === hoy()) return "vence hoy";
+    const manana = new Date();
+    manana.setDate(manana.getDate() + 1);
+    if (f === formatear(manana)) return "vence mañana";
+    const d = new Date(f + "T12:00:00");
+    return `vence el ${DIAS_CORTOS[d.getDay()]} ${d.getDate()}`;
+};
+
+// comentario de la tarjeta segun la meta semanal del ramo
+const comentario = (minutos: number, metaHoras: number) => {
+    const avance = minutos / (metaHoras * 60);
+    if (avance >= 1) return "¡vas volando!";
+    if (avance >= 0.5) return "bien ahí";
+    if (minutos > 0) return "medio solito...";
+    return "sin estudiar aún";
+};
+
+const ConSombra = ({ children, radio = 16, className = "", style }: { children: ReactNode; radio?: number; className?: string; style?: any }) => (
+    <View className={className} style={style}>
+        <View style={[StyleSheet.absoluteFill, { borderRadius: radio, backgroundColor: C.tinta, transform: [{ translateX: 3 }, { translateY: 4 }] }]} />
+        {children}
+    </View>
+);
 
 export default function Inicio() {
     const [nombre, setNombre] = useState("");
     const [racha, setRacha] = useState(0);
     const [mejor, setMejor] = useState(0);
     const [xp, setXp] = useState(0);
+    const [ultimoD, setUltimoD] = useState("");
+    const [ramos, setRamos] = useState<ramo[]>([]);
+    const [sesiones, setSesiones] = useState<sesion[]>([]);
+    const [tareaM, setTareaM] = useState<tarea | null>(null); // la entrega de "Misiones de hoy"
 
-    // useFocusEffect: corre CADA VEZ que vuelves a esta pantalla (useEffect corría una sola vez)
+
     useFocusEffect(
         useCallback(() => {
             const cargarUser = async () => {
@@ -23,35 +101,225 @@ export default function Inicio() {
                     setRacha(rachaViva(datos));
                     setMejor(datos.rachaMe ?? 0);
                     setXp(datos.xp ?? 0);
+                    setUltimoD(datos.ultimoD ?? "");
                 }
+
+                const snapR = await getDocs(collection(db, "usuarios", uid, "ramos"));
+                setRamos(snapR.docs.map((d) => ({ id: d.id, ...d.data() }) as ramo));
+
+                const snapS = await getDocs(collection(db, "usuarios", uid, "sesion"));
+                setSesiones(snapS.docs.map((d) => d.data() as sesion));
+
+                // la proxima entrega pendiente (desde hoy en adelante)
+                const snapT = await getDocs(collection(db, "usuarios", uid, "tareas"));
+                const pendiente = snapT.docs
+                    .map((d) => ({ id: d.id, ...d.data() }) as tarea)
+                    .filter((t) => !t.listo && t.fecha >= hoy())
+                    .sort((a, b) => (a.fecha + (a.hora ?? "")).localeCompare(b.fecha + (b.hora ?? "")))[0];
+                setTareaM(pendiente ?? null);
             };
             cargarUser();
         }, [])
     );
 
+    // marcar la entrega desde el inicio (misma logica que selecc en tareas.tsx)
+    const marcarTarea = async () => {
+        if (!tareaM) return;
+        const uid = auth.currentUser!.uid;
+        await updateDoc(doc(db, "usuarios", uid, "tareas", tareaM.id), { listo: !tareaM.listo });
+        await updateDoc(doc(db, "usuarios", uid), {
+            xp: increment(tareaM.listo ? -tareaM.xp : tareaM.xp)
+        });
+        setXp(xp + (tareaM.listo ? -tareaM.xp : tareaM.xp));
+        setTareaM({ ...tareaM, listo: !tareaM.listo });
+    };
+
+    // nivel
+    const nivel = Math.floor(xp / XP_NIVEL) + 1;
+    const siguiente = nivel * XP_NIVEL;
+    const titulo = TITULOS[Math.min(nivel - 1, TITULOS.length - 1)];
+    const avanceNivel = (xp - (nivel - 1) * XP_NIVEL) / XP_NIVEL;
+
+    // horas de la semana por ramo
+    const desdeLunes = lunes();
+    const minutosSemana = (id: string) =>
+        sesiones.filter((s) => s.ramoId === id && s.dia >= desdeLunes).reduce((suma, s) => suma + (s.minutos ?? 0), 0);
+
+    // mision de pomodoros: el ramo mas atrasado respecto a su meta semanal
+    const ramoM = [...ramos].sort(
+        (a, b) => minutosSemana(a.id) / ((a.meta ?? 4) * 60) - minutosSemana(b.id) / ((b.meta ?? 4) * 60)
+    )[0];
+    const pomodorosHoy = ramoM ? sesiones.filter((s) => s.ramoId === ramoM.id && s.dia === hoy()).length : 0;
+
+    const misiones = [
+        {
+            texto: "No romper la racha",
+            detalle: racha > 0 && ultimoD === ayer() ? "estudia hoy" : "",
+            listo: ultimoD === hoy(),
+            chip: null as string | null,
+            onPress: () => router.push("/pomodoro"),
+        },
+        ...(ramoM ? [{
+            texto: `${META_POMODOROS} pomodoros de ${ramoM.nombres}`,
+            detalle: `${Math.min(pomodorosHoy, META_POMODOROS)}/${META_POMODOROS}`,
+            listo: pomodorosHoy >= META_POMODOROS,
+            chip: `+${META_POMODOROS * XP_POMODORO} XP`,
+            onPress: () => router.push("/pomodoro"),
+        }] : []),
+        ...(tareaM ? [{
+            texto: tareaM.titulo,
+            detalle: vence(tareaM.fecha),
+            listo: tareaM.listo,
+            chip: `+${tareaM.xp} XP`,
+            onPress: marcarTarea,
+        }] : []),
+    ];
+    const listas = misiones.filter((m) => m.listo).length;
+
+    const ahora = new Date();
+    const fechaTxt = `${DIAS[ahora.getDay()]} ${ahora.getDate()} · semana ${semanaSemestre()} del semestre`;
+
     return (
-        <View className="flex-auto items-center justify-center">
-            <Text className="text-2xl">Bienvenidoooo, {nombre}</Text>
+        <SafeAreaView className="flex-1" edges={["top"]} style={{ backgroundColor: C.papel }}>
+            {/* Fondo cuadriculado */}
+            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+                <Defs>
+                    <Pattern id="hoja" width={22} height={22} patternUnits="userSpaceOnUse">
+                        <Path d="M 22 0 L 0 0 0 22" fill="none" stroke={C.cuadricula} strokeWidth={1} />
+                    </Pattern>
+                </Defs>
+                <Rect width="100%" height="100%" fill="url(#hoja)" />
+            </Svg>
 
-            <View className="mt-4 items-center rounded-2xl border-2 px-6 py-3" style={{ backgroundColor: "#FBDCCD" }}>
-                <Text className="text-xl font-bold">{racha} {racha === 1 ? "día" : "días"} de racha</Text>
-                <Text className="text-neutral-600">Mejor racha: {mejor} · {xp} XP</Text>
+            <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 480, alignSelf: "center", padding: 20, paddingBottom: 24 }}>
+                {/* Encabezado: logo, racha y perfil */}
+                <View className="mb-3 flex-row items-center justify-between">
+                    <View>
+                        <View className="absolute bottom-0 left-0 right-0 h-3" style={{ backgroundColor: C.boton }} />
+                        <Text style={{ fontSize: 30, fontWeight: "900", color: C.tinta, letterSpacing: -1 }}>studit</Text>
+                    </View>
+                    <View className="flex-row items-center gap-2">
+                        <View className="flex-row items-center gap-1 rounded-xl border-2 px-3 py-1.5" style={{ backgroundColor: C.durazno, borderColor: C.tinta }}>
+                            <Text>🔥</Text>
+                            <Text className="font-bold" style={{ color: C.tinta }}>{racha} {racha === 1 ? "día" : "días"}</Text>
+                        </View>
+                        <Pressable
+                            onPress={() => router.push("/perfilUsuario")}
+                            className="h-9 w-9 items-center justify-center rounded-full border-2"
+                            style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
+                        >
+                            <Text className="font-bold" style={{ color: C.tinta }}>{nombre ? nombre[0].toUpperCase() : "?"}</Text>
+                        </Pressable>
+                    </View>
+                </View>
+
+                <Text className="italic" style={{ color: C.verde }}>{fechaTxt}</Text>
+                <Text className="mb-4 text-3xl" style={{ fontWeight: "900", color: C.tinta }}>HOLA{nombre ? `, ${nombre.toUpperCase()}` : ""}</Text>
+
+                {/* Nivel */}
+                <ConSombra className="mb-6">
+                    <View className="flex-row items-center gap-4 rounded-2xl border-2 p-4" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
+                        <View className="h-16 w-16 items-center justify-center rounded-xl border-2" style={{ backgroundColor: C.boton, borderColor: C.tinta }}>
+                            <Text style={{ fontSize: 9, fontWeight: "800", letterSpacing: 1, color: C.tinta }}>NIVEL</Text>
+                            <Text style={{ fontSize: 24, fontWeight: "900", color: C.tinta }}>{nivel}</Text>
+                        </View>
+                        <View className="flex-1">
+                            <Text className="mb-1 text-base font-bold" style={{ color: C.tinta }}>{titulo}</Text>
+                            <View className="mb-1 h-3 overflow-hidden rounded-full border-2" style={{ borderColor: C.tinta, backgroundColor: C.blanco }}>
+                                <View style={{ width: `${avanceNivel * 100}%`, height: "100%", backgroundColor: C.coral }} />
+                            </View>
+                            <Text className="text-xs" style={{ color: C.gris }}>
+                                {miles(xp)} / {miles(siguiente)} XP · <Text className="font-bold" style={{ color: C.tinta }}>{siguiente - xp} más</Text> y llegas al nivel {nivel + 1}
+                            </Text>
+                            <Text className="text-xs" style={{ color: C.gris }}>mejor racha: {mejor} {mejor === 1 ? "día" : "días"}</Text>
+                        </View>
+                    </View>
+                </ConSombra>
+
+                {/* Misiones */}
+                <View className="mb-2 flex-row items-end justify-between">
+                    <Text className="text-xl" style={{ fontWeight: "900", color: C.tinta }}>Misiones de hoy</Text>
+                    <Pressable onPress={() => router.push("/tareas")}>
+                        <Text className="italic" style={{ color: C.verde }}>
+                            {listas} de {misiones.length} {misiones.length === 1 ? "lista" : "listas"} · <Text className="font-bold underline">agenda</Text>
+                        </Text>
+                    </Pressable>
+                </View>
+                {misiones.map((m) => (
+                    <Pressable
+                        key={m.texto}
+                        onPress={m.onPress}
+                        className="mb-3 flex-row items-center gap-3 rounded-2xl border-2 px-4 py-3"
+                        style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
+                    >
+                        <View
+                            className="h-6 w-6 items-center justify-center rounded-md border-2"
+                            style={{ borderColor: C.tinta, backgroundColor: m.listo ? C.verde : C.blanco }}
+                        >
+                            {m.listo && <Text className="font-bold" style={{ color: C.blanco, fontSize: 12 }}>✓</Text>}
+                        </View>
+                        <Text className={`flex-1 text-base ${m.listo ? "line-through" : ""}`} style={{ color: m.listo ? C.gris : C.tinta }}>
+                            <Text className="font-bold">{m.texto}</Text>
+                            {m.detalle ? (
+                                <Text style={{ color: m.detalle.startsWith("vence") ? C.coral : C.gris }}> · {m.detalle}</Text>
+                            ) : null}
+                        </Text>
+                        {m.chip && (
+                            <View className="rounded-full border-2 px-2 py-1" style={{ borderColor: C.coral, backgroundColor: C.durazno }}>
+                                <Text className="text-xs font-bold" style={{ color: C.tinta }}>{m.chip}</Text>
+                            </View>
+                        )}
+                    </Pressable>
+                ))}
+
+                {/* Ramos de la semana */}
+                <View className="mb-3 mt-3 flex-row items-end justify-between">
+                    <Text className="text-xl" style={{ fontWeight: "900", color: C.tinta }}>Tus ramos esta semana</Text>
+                    <Pressable onPress={() => router.push("/materias")}>
+                        <Text className="font-bold underline" style={{ color: C.tinta }}>editar ramos</Text>
+                    </Pressable>
+                </View>
+                {ramos.length === 0 ? (
+                    <Pressable
+                        onPress={() => router.push("/materias")}
+                        className="items-center rounded-2xl border-2 border-dashed p-6"
+                        style={{ borderColor: C.gris }}
+                    >
+                        <Text style={{ color: C.gris }}>Aún no tienes ramos. Toca para agregar el primero.</Text>
+                    </Pressable>
+                ) : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 6, paddingRight: 6 }}>
+                        {ramos.map((r, i) => {
+                            const min = minutosSemana(r.id);
+                            return (
+                                <ConSombra key={r.id} radio={6} style={{ transform: [{ rotate: `${[-2, 1.5, -1][i % 3]}deg` }] }}>
+                                    <View className="rounded-md border-2 p-3" style={{ width: 112, minHeight: 130, backgroundColor: r.color, borderColor: C.tinta }}>
+                                        <Text className="mb-2 font-bold" style={{ color: C.tinta }} numberOfLines={2}>{r.nombres}</Text>
+                                        <Text style={{ fontSize: 22, fontWeight: "900", color: C.tinta }}>{corto(min)}</Text>
+                                        <Text className="text-xs" style={{ color: C.tinta }}>{comentario(min, r.meta ?? 4)}</Text>
+                                    </View>
+                                </ConSombra>
+                            );
+                        })}
+                    </ScrollView>
+                )}
+            </ScrollView>
+
+            {/* Boton pomodoro */}
+            <View style={{ width: "100%", maxWidth: 480, alignSelf: "center", paddingHorizontal: 20, paddingBottom: 12 }}>
+                <ConSombra>
+                    <Pressable
+                        onPress={() => router.push("/pomodoro")}
+                        className="flex-row items-center justify-center gap-3 rounded-2xl border-2 py-4"
+                        style={{ backgroundColor: C.boton, borderColor: C.tinta }}
+                    >
+                        <Svg width={16} height={16} viewBox="0 0 24 24">
+                            <Path d="M6 3 L21 12 L6 21 Z" fill={C.tinta} />
+                        </Svg>
+                        <Text className="text-lg font-bold" style={{ color: C.tinta }}>Empezar pomodoro</Text>
+                    </Pressable>
+                </ConSombra>
             </View>
-
-            <Pressable onPress={() => router.push("/perfilUsuario")}>
-                <Text className="mt-4 underline">Ir al perfil</Text>
-            </Pressable>
-
-            <Pressable onPress={() => router.push("/tareas")}>
-                <Text className="mt-4 underline">Tareas </Text>
-            </Pressable>
-
-            <Pressable onPress={() => router.push("/materias")}>
-                <Text className="mt-4 underline">Mis ramos</Text>
-            </Pressable>
-            <Pressable onPress={() => router.push("/pomodoro")}>
-                <Text className="mt-4 underline">Pomodoro </Text>
-            </Pressable>
-        </View>
+        </SafeAreaView>
     );
 }
