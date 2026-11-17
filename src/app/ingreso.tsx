@@ -2,9 +2,22 @@ import { auth } from "@/lib/firebase";
 import { router } from 'expo-router';
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, Path, Pattern, Rect } from 'react-native-svg';
 
+// Diseno (misma paleta que inicio.tsx)
+const C = {
+    papel: "#F7F5EE",
+    cuadricula: "#E9E6DA",
+    tinta: "#1A1A1A",
+    gris: "#6B6B66",
+    boton: "#A6E0D7",
+    sombra: "#2E6B5E", // turquesa oscuro para la sombra del boton
+    campo: "#EEF8F5",
+    coral: "#E8664A",
+    blanco: "#FFFFFF",
+};
 
 export default function Ingreso() {
     const [correo, setCorreo] = useState('');
@@ -23,22 +36,74 @@ export default function Ingreso() {
     };
 
     return (
-        <SafeAreaView className="flex-1 justify-center bg-paper p-6">
-            <Text className="mb-6 text-center text-5xl font-work-black">Studit</Text>
-            <View className="rounded-2xl border-2 border-ink bg-white p-5">
-                <Text className="mb-4 text-center text-2xl font-work-black">¡Bienvenido de vuelta!</Text>
-                <Text className="mb-1 font-work-bold">Correo</Text>
-                <TextInput className="mb-3 rounded-lg border border-neutral-400 p-3" placeholder="tucorreo@estudiante.cl" autoCapitalize="none" value={correo} onChangeText={setCorreo} />
-                <Text className="mb-1 font-work-bold">Contraseña</Text>
-                <TextInput className="mb-3 rounded-lg border border-neutral-400 p-3" placeholder="••••••••" secureTextEntry value={clave} onChangeText={setClave} />
-                {error !== '' && <Text className="mb-3 text-red-600">{error}</Text>}
-                <Pressable className="items-center rounded-2xl border-2 border-ink bg-mint p-3" onPress={entrar}>
-                    <Text className="text-base font-work-bold">Entrar</Text>
+        <SafeAreaView className="flex-1" style={{ backgroundColor: C.papel }}>
+            {/* Fondo cuadriculado */}
+            <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+                <Defs>
+                    <Pattern id="hoja" width={22} height={22} patternUnits="userSpaceOnUse">
+                        <Path d="M 22 0 L 0 0 0 22" fill="none" stroke={C.cuadricula} strokeWidth={1} />
+                    </Pattern>
+                </Defs>
+                <Rect width="100%" height="100%" fill="url(#hoja)" />
+            </Svg>
+
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: "center", width: "100%", maxWidth: 420, alignSelf: "center", padding: 20 }}>
+                {/* Logo con subrayado turquesa */}
+                <View className="mb-10 items-center">
+                    <View>
+                        <View className="absolute left-0 right-0" style={{ bottom: 6, height: 22, backgroundColor: C.boton }} />
+                        <Text style={{ fontSize: 64, fontWeight: "900", color: C.tinta, letterSpacing: -2, paddingHorizontal: 6 }}>studit</Text>
+                    </View>
+                </View>
+
+                {/* Tarjeta */}
+                <View className="rounded-3xl p-5" style={{ backgroundColor: C.blanco, borderWidth: 1.5, borderColor: C.tinta }}>
+                    <Text className="mb-5 text-center text-2xl" style={{ fontWeight: "900", color: C.tinta }}>¡Volviste!</Text>
+
+                    <Text className="mb-2" style={{ fontWeight: "800", color: C.tinta }}>Correo</Text>
+                    <TextInput
+                        className="mb-4 rounded-xl px-4 py-3 text-base"
+                        style={{ backgroundColor: C.campo, borderWidth: 1.5, borderColor: C.tinta, color: C.tinta }}
+                        placeholder="tu.nombre@usm.cl"
+                        placeholderTextColor={C.gris}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        value={correo}
+                        onChangeText={setCorreo}
+                    />
+
+                    <Text className="mb-2" style={{ fontWeight: "800", color: C.tinta }}>Contraseña</Text>
+                    <TextInput
+                        className="mb-4 rounded-xl px-4 py-3 text-base"
+                        style={{ backgroundColor: C.campo, borderWidth: 1.5, borderColor: C.tinta, color: C.tinta }}
+                        placeholder="••••••••"
+                        placeholderTextColor={C.gris}
+                        secureTextEntry
+                        value={clave}
+                        onChangeText={setClave}
+                    />
+
+                    {error !== '' && <Text className="mb-3" style={{ color: C.coral, fontWeight: "700" }}>{error}</Text>}
+
+                    {/* Boton con sombra dura */}
+                    <View className="mt-1">
+                        <View className="absolute left-0 right-0 rounded-xl" style={{ top: 5, bottom: -5, backgroundColor: C.sombra }} />
+                        <Pressable onPress={entrar}>
+                            {({ pressed }) => (
+                                <View style={{ backgroundColor: C.boton, borderWidth: 1.5, borderColor: C.sombra, borderRadius: 12, paddingVertical: 16, alignItems: "center", transform: [{ translateY: pressed ? 4 : 0 }] }}>
+                                    <Text className="text-lg" style={{ fontWeight: "900", color: C.tinta }}>Entrar  →</Text>
+                                </View>
+                            )}
+                        </Pressable>
+                    </View>
+                </View>
+
+                <Pressable className="mt-10" onPress={() => router.push('/registro')}>
+                    <Text className="text-center text-base" style={{ color: C.tinta }}>
+                        ¿Primera vez? <Text className="underline" style={{ fontWeight: "900" }}>Crea tu cuenta</Text>
+                    </Text>
                 </Pressable>
-            </View>
-            <Pressable className="mt-6" onPress={() => router.push('/registro')}>
-                <Text className="text-center font-work-medium">¿Eres nuevo? <Text className="font-work-black">Regístrate</Text></Text>
-            </Pressable>
+            </ScrollView>
         </SafeAreaView>
     );
 }

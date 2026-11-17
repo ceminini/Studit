@@ -19,6 +19,12 @@ const ICONOS: Record<string, React.ReactNode> = {
             <Path d="M9 21 V13 H15 V21" {...trazo} />
         </>
     ),
+    materias: (
+        <>
+            <Path d="M12 6 C10 4.5 7 4 3 4.5 V19 C7 18.5 10 19 12 20.5 C14 19 17 18.5 21 19 V4.5 C17 4 14 4.5 12 6 Z" {...trazo} />
+            <Path d="M12 6 V20.5" {...trazo} />
+        </>
+    ),
     pomodoro: (
         <>
             <Circle cx={12} cy={14} r={7} {...trazo} />
@@ -70,6 +76,8 @@ export default function TabsLayout() {
             screenOptions={({ route }) => ({
                 headerShown: false,
                 tabBarIcon: ({ focused }) => <Icono nombre={route.name} activo={focused} />,
+                // la caja del icono trae 24x24 por defecto y la pastilla mide 46x32: si no se agranda, queda descuadrada
+                tabBarIconStyle: { width: 46, height: 32 },
                 // la palabra del tab activo va en negrita
                 tabBarLabel: ({ focused, children }) => (
                     <Text style={{ fontSize: 12, marginTop: 4, color: C.tinta, fontWeight: focused ? "800" : "500" }}>{children}</Text>
@@ -86,12 +94,11 @@ export default function TabsLayout() {
             })}
         >
             <Tabs.Screen name="inicio" options={{ title: "Inicio" }} />
-            <Tabs.Screen name="pomodoro" options={{ title: "Estudiar" }} />
+            <Tabs.Screen name="materias" options={{ title: "Ramos" }} />
+            <Tabs.Screen name="pomodoro" options={{ title: "Pomodoro" }} />
             <Tabs.Screen name="tareas" options={{ title: "Agenda" }} />
             <Tabs.Screen name="amigos" options={{ title: "Amigos" }} />
             <Tabs.Screen name="perfilUsuario" options={{ title: "Perfil" }} />
-            {/* materias no va en la barra: se entra desde "editar ramos" en el inicio */}
-            <Tabs.Screen name="materias" options={{ href: null }} />
         </Tabs>
     );
 }

@@ -1,12 +1,15 @@
 import { ayer, hoy } from "@/lib/fecha";
 import { auth, db } from "@/lib/firebase";
 import { rachaViva } from "@/lib/racha";
+import { subida, subioN } from "@/lib/nivel";
+import SubioNivel from "@/components/SubioNivel";
 import { router, useFocusEffect } from "expo-router";
 import { collection, doc, getDoc, getDocs, increment, updateDoc } from "firebase/firestore";
 import { ReactNode, useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
+import { Lucide } from "@react-native-vector-icons/lucide";
 
 type ramo = { id: string; nombres: string; color: string; meta?: number };
 type sesion = { ramoId: string; minutos: number; dia: string };
@@ -28,10 +31,9 @@ const C = {
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 
-// niveles: cada nivel pide XP_NIVEL de experiencia
+// niveles
 const XP_NIVEL = 250;
 const TITULOS = ["Recién llegado", "Aprendiz", "Curioso", "Constante", "Ratón de biblioteca", "Cerebrito", "Leyenda del ramo"];
-const XP_POMODORO = 10; // igual que xpPomodoro en pomodoro.tsx
 const META_POMODOROS = 2;
 
 const miles = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -88,6 +90,7 @@ export default function Inicio() {
     const [ramos, setRamos] = useState<ramo[]>([]);
     const [sesiones, setSesiones] = useState<sesion[]>([]);
     const [tareaM, setTareaM] = useState<tarea | null>(null); // la entrega de "Misiones de hoy"
+    const [nivelN, setNivelN] = useState<subida | null>(null); // pantalla de subir de nivel
 
 
     useFocusEffect(
@@ -131,6 +134,7 @@ export default function Inicio() {
             xp: increment(tareaM.listo ? -tareaM.xp : tareaM.xp)
         });
         setXp(xp + (tareaM.listo ? -tareaM.xp : tareaM.xp));
+        if (!tareaM.listo) setNivelN(await subioN(uid, tareaM.xp));
         setTareaM({ ...tareaM, listo: !tareaM.listo });
     };
 
@@ -163,7 +167,7 @@ export default function Inicio() {
             texto: `${META_POMODOROS} pomodoros de ${ramoM.nombres}`,
             detalle: `${Math.min(pomodorosHoy, META_POMODOROS)}/${META_POMODOROS}`,
             listo: pomodorosHoy >= META_POMODOROS,
-            chip: `+${META_POMODOROS * XP_POMODORO} XP`,
+            chip: "+XP", // el XP depende del tiempo que elija en el pomodoro
             onPress: () => router.push("/pomodoro"),
         }] : []),
         ...(tareaM ? [{
@@ -196,48 +200,38 @@ export default function Inicio() {
                 <View className="mb-3 flex-row items-center justify-between">
                     <View>
                         <View className="absolute bottom-0 left-0 right-0 h-3" style={{ backgroundColor: C.boton }} />
-                        <Text style={{ fontSize: 30, fontWeight: "900", color: C.tinta, letterSpacing: -1 }}>studit</Text>
+                        <Text style={{ fontSize: 30, fontWeight: "900", color: C.tinta, letterSpacing: -1 }}>Studit</Text>
                     </View>
-                    <View className="flex-row items-center gap-2">
-                        <View className="flex-row items-center gap-1 rounded-xl border-2 px-3 py-1.5" style={{ backgroundColor: C.durazno, borderColor: C.tinta }}>
-                            <Text>🔥</Text>
-                            <Text className="font-bold" style={{ color: C.tinta }}>{racha} {racha === 1 ? "día" : "días"}</Text>
-                        </View>
-                        <Pressable
-                            onPress={() => router.push("/perfilUsuario")}
-                            className="h-9 w-9 items-center justify-center rounded-full border-2"
-                            style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
-                        >
-                            <Text className="font-bold" style={{ color: C.tinta }}>{nombre ? nombre[0].toUpperCase() : "?"}</Text>
-                        </Pressable>
+                    <View className="flex-row items-center gap-1 rounded-xl border-2 px-3 py-1.5" style={{ backgroundColor: C.durazno, borderColor: C.tinta }}>
+                        <Lucide name="flame" size={18} color={C.coral} />
+                        <Text className="font-bold" style={{ color: C.tinta }}>{racha} {racha === 1 ? "día" : "días"}</Text>
                     </View>
                 </View>
 
-                <Text className="italic" style={{ color: C.verde }}>{fechaTxt}</Text>
-                <Text className="mb-4 text-3xl" style={{ fontWeight: "900", color: C.tinta }}>HOLA{nombre ? `, ${nombre.toUpperCase()}` : ""}</Text>
+                <Text className="mt-2 italic" style={{ color: C.verde }}>{fechaTxt}</Text>
+                <Text className="mb-5 text-2xl" style={{ fontWeight: "900", color: C.tinta }}>HOLA{nombre ? `, ${nombre.toUpperCase()}` : ""}</Text>
 
                 {/* Nivel */}
-                <ConSombra className="mb-6">
+                <ConSombra className="mb-8">
                     <View className="flex-row items-center gap-4 rounded-2xl border-2 p-4" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
                         <View className="h-16 w-16 items-center justify-center rounded-xl border-2" style={{ backgroundColor: C.boton, borderColor: C.tinta }}>
                             <Text style={{ fontSize: 9, fontWeight: "800", letterSpacing: 1, color: C.tinta }}>NIVEL</Text>
                             <Text style={{ fontSize: 24, fontWeight: "900", color: C.tinta }}>{nivel}</Text>
                         </View>
                         <View className="flex-1">
-                            <Text className="mb-1 text-base font-bold" style={{ color: C.tinta }}>{titulo}</Text>
-                            <View className="mb-1 h-3 overflow-hidden rounded-full border-2" style={{ borderColor: C.tinta, backgroundColor: C.blanco }}>
+                            <Text className="mb-2 text-base font-bold" style={{ color: C.tinta }}>{titulo}</Text>
+                            <View className="mb-2 h-3 overflow-hidden rounded-full border-2" style={{ borderColor: C.tinta, backgroundColor: C.blanco }}>
                                 <View style={{ width: `${avanceNivel * 100}%`, height: "100%", backgroundColor: C.coral }} />
                             </View>
-                            <Text className="text-xs" style={{ color: C.gris }}>
-                                {miles(xp)} / {miles(siguiente)} XP · <Text className="font-bold" style={{ color: C.tinta }}>{siguiente - xp} más</Text> y llegas al nivel {nivel + 1}
+                            <Text className="text-sm" style={{ color: C.gris }}>
+                                <Text className="font-bold" style={{ color: C.tinta }}>{miles(siguiente - xp)} XP</Text> para el nivel {nivel + 1}
                             </Text>
-                            <Text className="text-xs" style={{ color: C.gris }}>mejor racha: {mejor} {mejor === 1 ? "día" : "días"}</Text>
                         </View>
                     </View>
                 </ConSombra>
 
                 {/* Misiones */}
-                <View className="mb-2 flex-row items-end justify-between">
+                <View className="mb-3 flex-row items-end justify-between">
                     <Text className="text-xl" style={{ fontWeight: "900", color: C.tinta }}>Misiones de hoy</Text>
                     <Pressable onPress={() => router.push("/tareas")}>
                         <Text className="italic" style={{ color: C.verde }}>
@@ -273,11 +267,8 @@ export default function Inicio() {
                 ))}
 
                 {/* Ramos de la semana */}
-                <View className="mb-3 mt-3 flex-row items-end justify-between">
+                <View className="mb-3 mt-5">
                     <Text className="text-xl" style={{ fontWeight: "900", color: C.tinta }}>Tus ramos esta semana</Text>
-                    <Pressable onPress={() => router.push("/materias")}>
-                        <Text className="font-bold underline" style={{ color: C.tinta }}>editar ramos</Text>
-                    </Pressable>
                 </View>
                 {ramos.length === 0 ? (
                     <Pressable
@@ -288,12 +279,12 @@ export default function Inicio() {
                         <Text style={{ color: C.gris }}>Aún no tienes ramos. Toca para agregar el primero.</Text>
                     </Pressable>
                 ) : (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 6, paddingRight: 6 }}>
-                        {ramos.map((r, i) => {
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingTop: 2, paddingBottom: 8, paddingRight: 8 }}>
+                        {ramos.map((r) => {
                             const min = minutosSemana(r.id);
                             return (
-                                <ConSombra key={r.id} radio={6} style={{ transform: [{ rotate: `${[-2, 1.5, -1][i % 3]}deg` }] }}>
-                                    <View className="rounded-md border-2 p-3" style={{ width: 112, minHeight: 130, backgroundColor: r.color, borderColor: C.tinta }}>
+                                <ConSombra key={r.id} radio={6}>
+                                    <View className="rounded-md border-2 p-3" style={{ width: 100, minHeight: 110, backgroundColor: r.color, borderColor: C.tinta }}>
                                         <Text className="mb-2 font-bold" style={{ color: C.tinta }} numberOfLines={2}>{r.nombres}</Text>
                                         <Text style={{ fontSize: 22, fontWeight: "900", color: C.tinta }}>{corto(min)}</Text>
                                         <Text className="text-xs" style={{ color: C.tinta }}>{comentario(min, r.meta ?? 4)}</Text>
@@ -303,11 +294,9 @@ export default function Inicio() {
                         })}
                     </ScrollView>
                 )}
-            </ScrollView>
 
-            {/* Boton pomodoro */}
-            <View style={{ width: "100%", maxWidth: 480, alignSelf: "center", paddingHorizontal: 20, paddingBottom: 12 }}>
-                <ConSombra>
+                {/* Boton pomodoro: va dentro del scroll para que no tape las misiones */}
+                <ConSombra className="mt-8">
                     <Pressable
                         onPress={() => router.push("/pomodoro")}
                         className="flex-row items-center justify-center gap-3 rounded-2xl border-2 py-4"
@@ -319,7 +308,9 @@ export default function Inicio() {
                         <Text className="text-lg font-bold" style={{ color: C.tinta }}>Empezar pomodoro</Text>
                     </Pressable>
                 </ConSombra>
-            </View>
+            </ScrollView>
+
+            <SubioNivel datos={nivelN} onCerrar={() => setNivelN(null)} />
         </SafeAreaView>
     );
 }

@@ -1,10 +1,15 @@
 import { auth, db } from "@/lib/firebase";
-import { addDoc, collection, deleteDoc, doc, increment, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
-import { ReactNode, useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { cancelarRecordatorio, programarRecordatorio, programarR } from "@/lib/notificaciones";
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, increment, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
+import { ReactNode, useCallback, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
+import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
+import { subida, subioN } from "@/lib/nivel";
+import SubioNivel from "@/components/SubioNivel";
 
 LocaleConfig.locales.es = {
     today: "Hoy",
@@ -16,8 +21,11 @@ LocaleConfig.locales.es = {
 LocaleConfig.defaultLocale = "es";
 
 type ramo = { id: string; nombres: string; color: string };
-type tarea = { id: string; titulo: string; ramoNombre: string; ramoId: string; color: string; fecha: string; listo: boolean; xp: number; hora?: string };
+type tarea = { id: string; titulo: string; ramoNombre: string; ramoId: string; color: string; fecha: string; listo: boolean; xp: number; hora?: string, notifId?: string };
+type rutina = { id: string; titulo: string; tipo: string; inicio: string; fin: string; dias: number[]; hechos: string[]; xp: number; notifIds?: string[] };
 
+
+const TIPOS = ["dormir", "ejercicio", "ocio", "trabajo", "otro"];
 const fecha = () => {
     const t = new Date();
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
@@ -25,7 +33,7 @@ const fecha = () => {
 
 //Diseno 
 const C = {
-    papel: "#F7F5EE",
+    papel: "#FFFFFF",
     cuadricula: "#E9E6DA",
     tinta: "#1A1A1A",
     gris: "#6B6B66",
@@ -60,9 +68,15 @@ export default function Tareas() {
     const [diaS, setDiaS] = useState(fecha());
     const [hora, setHora] = useState("");
     const [error, setError] = useState("");
+    const [nivelN, setNivelN] = useState<subida | null>(null); // pantalla de subir de nivel
     const uid = auth.currentUser!.uid;
     const tareasR = collection(db, "usuarios", uid, "tareas");
-
+    const rutinaR = collection(db, "usuarios", uid, "rutina");
+    const [rutinas, setRutinas] = useState<rutina[]>([]);
+    const [tipoE, setTipoE] = useState("");
+    const [inicio, setInicio] = useState("");
+    const [fin, setFin] = useState("");
+    const [dias, setDias] = useState<number[]>([]);
 
     const [formAbierto, setFormAbierto] = useState(false);
     const [vista, setVista] = useState<"estudio" | "rutinas">("estudio");
@@ -73,19 +87,25 @@ export default function Tareas() {
         setRamos(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ramo));
         const snapT = await getDocs(tareasR);
         setTareas(snapT.docs.map((d) => ({ id: d.id, ...d.data() }) as tarea));
+        const snapR = await getDocs(rutinaR);
+        setRutinas(snapR.docs.map((d) => ({ id: d.id, ...d.data() }) as rutina));
     };
 
-    useEffect(() => {
-        cargar();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            cargar();
+        }, [])
+    );
 
     const agregarT = async () => {
         if (!titulo.trim())
             return setError("Escribe una tarea");
+        if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(hora.trim()))
+            return setError("Escribe la hora, ej: 23:59");
         if (!ramoE)
             return setError("Escoge un ramo");
         try {
-            await addDoc(tareasR, {
+            const nuevaT = await addDoc(tareasR, {
                 titulo: titulo.trim(),
                 ramoId: ramoE.id,
                 xp: 100,  //fijo por ahora, corregir
@@ -96,6 +116,8 @@ export default function Tareas() {
                 listo: false,
                 creadoEn: serverTimestamp(),
             });
+            const notifId = await programarRecordatorio(titulo.trim(), diaS, hora.trim());
+            if (notifId) await updateDoc(nuevaT, { notifId });
             setTitulo("");
             setHora("");
             setError("");
@@ -105,18 +127,148 @@ export default function Tareas() {
             setError(e.code);
         }
     };
+    const agregarR = async () => {
+        if (!titulo.trim()) return setError("Escribe una actividad");
+        if (!tipoE) return setError("Escoge un tipo");
+        if (!inicio || !fin) return setError("Elige la hora de inicio y fin");
+        if (dias.length === 0) return setError("Escoge al menos un día");
+        try {
+            const nuevaR = await addDoc(rutinaR, {
+                titulo: titulo.trim(),
+                tipo: tipoE,
+                inicio,
+                fin,
+                dias,
+                hechos: [],
+                xp: 50,
+                creadoEn: serverTimestamp(),
+            });
+            const notifIds = await programarR(titulo.trim(), inicio, dias);
+            if (notifIds.length > 0) await updateDoc(nuevaR, { notifIds });
+            setTitulo("");
+            setTipoE("");
+            setInicio("");
+            setFin("");
+            setDias([]);
+            setError("");
+            setFormAbierto(false);
+            cargar();
+        } catch (e: any) {
+            setError(e.code);
+        }
+    };
+
+    const elegirH = (guardarH: (h: string) => void) => {
+        DateTimePickerAndroid.open({
+            value: new Date(),
+            mode: "time",
+            is24Hour: true,
+            onChange: (event, fecha) => {
+                if (event.type !== "set" || !fecha) return;
+                const hh = String(fecha.getHours()).padStart(2, "0");
+                const mm = String(fecha.getMinutes()).padStart(2, "0");
+                guardarH(`${hh}:${mm}`);
+            },
+        });
+    };
+
+    const campoH = (valorH: string, setValorH: (h: string) => void, textoH: string) =>
+        Platform.OS === "web" ? (
+            <TextInput
+                className="mb-3 flex-1 rounded-xl border-2 p-3"
+                style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
+                placeholder={`${textoH}, ej: 18:00`}
+                value={valorH}
+                onChangeText={setValorH}
+            />
+        ) : (
+            <Pressable
+                onPress={() => elegirH(setValorH)}
+                className="mb-3 flex-1 rounded-xl border-2 p-3"
+                style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
+            >
+                <Text style={{ color: valorH ? C.tinta : C.gris }}>{valorH ? valorH : textoH}</Text>
+            </Pressable>
+        );
 
     const selecc = async (t: tarea) => {
         await updateDoc(doc(db, "usuarios", uid, "tareas", t.id), { listo: !t.listo });
         await updateDoc(doc(db, "usuarios", uid), {
             xp: increment(t.listo ? -t.xp : t.xp)
         });
+        if (!t.listo) setNivelN(await subioN(uid, t.xp));
         cargar();
     };
 
-    const borrar = async (id: string) => {
-        await deleteDoc(doc(db, "usuarios", uid, "tareas", id));
+    const borrar = async (t: tarea) => {
+        if (t.notifId) await cancelarRecordatorio(t.notifId);
+        await deleteDoc(doc(db, "usuarios", uid, "tareas", t.id));
         cargar();
+    };
+
+    const hoyS = fecha();
+    const marcarR = async (r: rutina) => {
+        const hechoH = r.hechos.includes(hoyS);
+        await updateDoc(doc(db, "usuarios", uid, "rutina", r.id), {
+            hechos: hechoH ? arrayRemove(hoyS) : arrayUnion(hoyS),
+        });
+        await updateDoc(doc(db, "usuarios", uid), {
+            xp: increment(hechoH ? -r.xp : r.xp)
+        });
+        if (!hechoH) setNivelN(await subioN(uid, r.xp));
+        cargar();
+    };
+
+    const borrarR = async (r: rutina) => {
+        for (const id of r.notifIds ?? []) await cancelarRecordatorio(id);
+        await deleteDoc(doc(db, "usuarios", uid, "rutina", r.id));
+        cargar();
+    };
+
+    const diaH = new Date().getDay();
+    const ordenH = (a: rutina, b: rutina) => a.inicio.localeCompare(b.inicio);
+    const rutinaH = rutinas.filter((r) => r.dias.includes(diaH)).sort(ordenH);
+    const rutinaO = rutinas.filter((r) => !r.dias.includes(diaH)).sort(ordenH);
+
+    const filaR = (r: rutina, marcaH: boolean) => {
+        const hechoH = marcaH && r.hechos.includes(hoyS);
+        return (
+            <View key={r.id} className="mb-3 flex-row items-center gap-3 rounded-2xl border-2 p-3" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
+                {marcaH && (
+                    <Pressable
+                        onPress={() => marcarR(r)}
+                        className="h-7 w-7 items-center justify-center rounded-md border-2"
+                        style={{ backgroundColor: hechoH ? C.verde : C.blanco, borderColor: C.tinta }}
+                    >
+                        {hechoH && <Text className="font-bold" style={{ color: C.blanco }}>✓</Text>}
+                    </Pressable>
+                )}
+
+                <View className="flex-1">
+                    <Text className={`text-base font-bold ${hechoH ? "line-through" : ""}`} style={{ color: hechoH ? C.gris : C.tinta }}>
+                        {r.titulo}
+                    </Text>
+                    <View className="mt-1 flex-row flex-wrap items-center gap-2">
+                        <View className="rounded-md px-2 py-0.5" style={{ backgroundColor: C.boton }}>
+                            <Text className="text-xs font-bold" style={{ color: C.tinta }}>{r.tipo}</Text>
+                        </View>
+                        <Text className="text-xs" style={{ color: C.gris }}>{r.inicio} – {r.fin}</Text>
+                        <Text className="text-xs" style={{ color: C.gris }}>
+                            {[1, 2, 3, 4, 5, 6, 0].filter((d) => r.dias.includes(d)).map((d) => "DLMXJVS"[d]).join(" ")}
+                        </Text>
+                    </View>
+                </View>
+
+                <View className="items-end gap-2">
+                    <View className="rounded-full border px-2 py-0.5" style={{ backgroundColor: C.durazno, borderColor: C.coral }}>
+                        <Text className="text-xs font-bold" style={{ color: C.coral }}>+{r.xp} XP</Text>
+                    </View>
+                    <Pressable onPress={() => borrarR(r)} hitSlop={8}>
+                        <Text className="text-xs underline" style={{ color: C.gris }}>Quitar</Text>
+                    </Pressable>
+                </View>
+            </View>
+        );
     };
 
     // tareas por dia
@@ -228,9 +380,31 @@ export default function Tareas() {
                 </View>
 
                 {vista === "rutinas" ? (
-                    <View className="items-center rounded-2xl border-2 p-8" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
-                        <Text className="text-lg font-bold" style={{ color: C.tinta }}>Rutinas</Text>
-                    </View>
+                    <>
+                        <View className="mb-3 flex-row items-end justify-between">
+                            <Text className="text-2xl" style={{ fontWeight: "900", color: C.tinta }}>Hoy</Text>
+                            {rutinaH.length > 0 && (
+                                <Text className="italic" style={{ color: C.verde }}>
+                                    {rutinaH.filter((r) => r.hechos.includes(hoyS)).length} de {rutinaH.length} hechos
+                                </Text>
+                            )}
+                        </View>
+
+                        {rutinaH.length === 0 && (
+                            <View className="mb-6 items-center rounded-2xl border-2 border-dashed p-6" style={{ borderColor: C.gris }}>
+                                <Text style={{ color: C.gris }}>Nada en tu rutina para hoy</Text>
+                                <Text className="text-xs" style={{ color: C.gris }}>Toca + para agregar un hábito</Text>
+                            </View>
+                        )}
+                        {rutinaH.map((r) => filaR(r, true))}
+
+                        {rutinaO.length > 0 && (
+                            <>
+                                <Text className="mb-3 mt-4 text-xl" style={{ fontWeight: "900", color: C.tinta }}>Otros días</Text>
+                                {rutinaO.map((r) => filaR(r, false))}
+                            </>
+                        )}
+                    </>
                 ) : (
                     <>
                         {/* Calendario */}
@@ -314,7 +488,7 @@ export default function Tareas() {
                                     <View className="rounded-full border px-2 py-0.5" style={{ backgroundColor: C.durazno, borderColor: C.coral }}>
                                         <Text className="text-xs font-bold" style={{ color: C.coral }}>+{t.xp} XP</Text>
                                     </View>
-                                    <Pressable onPress={() => borrar(t.id)} hitSlop={8}>
+                                    <Pressable onPress={() => borrar(t)} hitSlop={8}>
                                         <Text className="text-xs underline" style={{ color: C.gris }}>Quitar</Text>
                                     </Pressable>
                                 </View>
@@ -332,6 +506,8 @@ export default function Tareas() {
                         className="w-full rounded-t-3xl border-2 p-6"
                         style={{ maxWidth: 480, alignSelf: "center", backgroundColor: C.papel, borderColor: C.tinta }}
                     >
+                        {vista === "estudio" ? (
+                        <>
                         <Text className="text-base italic" style={{ color: C.verde }}>nueva entrega</Text>
                         <Text className="mb-4 text-2xl" style={{ fontWeight: "900", color: C.tinta }}>Para el {tituloDia}</Text>
 
@@ -342,13 +518,25 @@ export default function Tareas() {
                             value={titulo}
                             onChangeText={setTitulo}
                         />
-                        <TextInput
-                            className="mb-3 rounded-xl border-2 p-3"
-                            style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
-                            placeholder="Hora (opcional), ej: 23:59"
-                            value={hora}
-                            onChangeText={setHora}
-                        />
+                        {Platform.OS === "web" ? (
+                            <TextInput
+                                className="mb-3 rounded-xl border-2 p-3"
+                                style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
+                                placeholder="Hora, ej: 23:59"
+                                value={hora}
+                                onChangeText={setHora}
+                            />
+                        ) : (
+                            <Pressable
+                                onPress={() => elegirH(setHora)}
+                                className="mb-3 rounded-xl border-2 p-3"
+                                style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
+                            >
+                                <Text style={{ color: hora ? C.tinta : C.gris }}>
+                                    {hora ? hora : "Elegir hora"}
+                                </Text>
+                            </Pressable>
+                        )}
 
                         <Text className="mb-2 font-bold" style={{ color: C.tinta }}>Ramo</Text>
                         <View className="mb-4 flex-row flex-wrap gap-2">
@@ -372,12 +560,70 @@ export default function Tareas() {
                                 <Text className="text-lg font-bold" style={{ color: C.tinta }}>+ Agregar entrega</Text>
                             </Pressable>
                         </ConSombra>
+                        </>
+                        ) : (
+                        <>
+                        <Text className="text-base italic" style={{ color: C.verde }}>nuevo hábito</Text>
+                        <Text className="mb-4 text-2xl" style={{ fontWeight: "900", color: C.tinta }}>Rutina</Text>
+
+                        <TextInput
+                            className="mb-3 rounded-xl border-2 p-3"
+                            style={{ backgroundColor: C.blanco, borderColor: C.tinta }}
+                            placeholder="Ej: Gimnasio"
+                            value={titulo}
+                            onChangeText={setTitulo}
+                        />
+
+                        <View className="flex-row gap-2">
+                            {campoH(inicio, setInicio, "Inicio")}
+                            {campoH(fin, setFin, "Fin")}
+                        </View>
+
+                        <Text className="mb-2 font-bold" style={{ color: C.tinta }}>Tipo</Text>
+                        <View className="mb-4 flex-row flex-wrap gap-2">
+                            {TIPOS.map((t) => (
+                                <Pressable
+                                    key={t}
+                                    onPress={() => setTipoE(t)}
+                                    className={`rounded-full px-4 py-2 ${tipoE === t ? "border-[3px]" : "border"}`}
+                                    style={{ backgroundColor: tipoE === t ? C.boton : C.blanco, borderColor: C.tinta }}
+                                >
+                                    <Text className="font-bold" style={{ color: C.tinta }}>{t}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+
+                        <Text className="mb-2 font-bold" style={{ color: C.tinta }}>Días</Text>
+                        <View className="mb-4 flex-row justify-between">
+                            {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                                <Pressable
+                                    key={d}
+                                    onPress={() => setDias(dias.includes(d) ? dias.filter((x) => x !== d) : [...dias, d])}
+                                    className="h-10 w-10 items-center justify-center rounded-full border-2"
+                                    style={{ backgroundColor: dias.includes(d) ? C.boton : C.blanco, borderColor: C.tinta }}
+                                >
+                                    <Text className="font-bold" style={{ color: C.tinta }}>{"DLMXJVS"[d]}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+
+                        {error !== "" && <Text className="mb-3" style={{ color: C.coral }}>{error}</Text>}
+
+                        <ConSombra radio={16} className="mb-4">
+                            <Pressable onPress={agregarR} className="items-center rounded-2xl border-2 py-3.5" style={{ backgroundColor: C.boton, borderColor: C.tinta }}>
+                                <Text className="text-lg font-bold" style={{ color: C.tinta }}>+ Agregar hábito</Text>
+                            </Pressable>
+                        </ConSombra>
+                        </>
+                        )}
                         <Pressable onPress={() => setFormAbierto(false)} className="items-center">
                             <Text className="underline" style={{ color: C.gris }}>Cancelar</Text>
                         </Pressable>
                     </Pressable>
                 </Pressable>
             </Modal>
+
+            <SubioNivel datos={nivelN} onCerrar={() => setNivelN(null)} />
         </SafeAreaView>
     );
 }
