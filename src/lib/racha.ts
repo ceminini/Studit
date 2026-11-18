@@ -16,7 +16,5 @@ export const actualizarR = async (uid: string) => {
         rachaMe: Math.max(racha, datos.rachaMe ?? 0),
     });
 };
-
-// Para mostrar: si no estudió ni hoy ni ayer, la racha ya se cortó
 export const rachaViva = (datos: any) =>
     datos.ultimoD === hoy() || datos.ultimoD === ayer() ? (datos.rachaAc ?? 0) : 0;

@@ -7,25 +7,13 @@ import { useFocusEffect } from "expo-router";
 import { signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { ReactNode, useCallback, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "@/components/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, Path, Pattern, Rect } from "react-native-svg";
 import { Lucide, LucideIconName } from "@react-native-vector-icons/lucide";
+import { C } from "@/lib/colores";
 
-// Diseno (misma paleta que inicio.tsx)
-const C = {
-    papel: "#F7F5EE",
-    cuadricula: "#E9E6DA",
-    tinta: "#1A1A1A",
-    gris: "#6B6B66",
-    verde: "#2E6B5E",
-    boton: "#A6E0D7",
-    coral: "#E8664A",
-    durazno: "#FBDCCD",
-    lila: "#CDBEF2",
-    amarillo: "#F8E29B",
-    blanco: "#FFFFFF",
-};
 
 const DIAS_L = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -94,9 +82,9 @@ export default function PerfilUsuario() {
     const [tareasL, setTareasL] = useState(0);        // tareas listas
     const [habitos, setHabitos] = useState(0);
     const [ramos, setRamos] = useState<ramo[]>([]);
-    const [ajustesV, setAjustesV] = useState(false);  // modal de ajustes visible
+    const [ajustesV, setAjustesV] = useState(false);  // modal
 
-    // useFocusEffect para que se actualice cada vez que entras al perfil
+    // useFocusEffect para que actualice
     useFocusEffect(
         useCallback(() => {
             const cargar = async () => {
@@ -150,12 +138,12 @@ export default function PerfilUsuario() {
     const siguiente = nivel * XP_NIVEL;
     const avance = (xp - (nivel - 1) * XP_NIVEL) / XP_NIVEL;
 
-    // rangos: 4 titulos alrededor del actual (cada titulo = un nivel, igual que tituloDe)
+    // rangois 
     const actualR = Math.min(nivel - 1, TITULOS.length - 1);
     const desdeR = Math.max(0, Math.min(actualR - 1, TITULOS.length - 4));
     const rangosV = TITULOS.slice(desdeR, desdeR + 4).map((t, i) => ({ titulo: t, nv: desdeR + i + 1 }));
 
-    // semana: con check los dias que hubo pomodoro
+    // semana
     const diasE = new Set(sesiones.map((s) => s.dia));
     const semana = semanaA();
 
@@ -169,7 +157,7 @@ export default function PerfilUsuario() {
     const maxR = Math.max(60, ...horasR.map((r) => r.min));
     const horasTxt = (min: number) => (min < 60 ? `${min} min` : `${(min / 60).toFixed(1).replace(".", ",").replace(",0", "")} h`);
 
-    // insignias (R9): se ganan solas con los datos
+    // insignias
     const insignias = [
         { nombre: "Primer pomodoro", gano: sesiones.length > 0, color: C.boton, forma: 999, icono: <IconoI nombre="timer" /> },
         { nombre: "Madrugador", gano: sesiones.some((s) => horaDe(s) >= 0 && horaDe(s) < 9), color: C.boton, forma: 999, icono: <IconoI nombre="sun" /> },
@@ -188,15 +176,14 @@ export default function PerfilUsuario() {
             {/* Fondo cuadriculado */}
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
                 <Defs>
-                    <Pattern id="hojaP" width={22} height={22} patternUnits="userSpaceOnUse">
-                        <Path d="M 22 0 L 0 0 0 22" fill="none" stroke={C.cuadricula} strokeWidth={1} />
+                    <Pattern id="hojaP" width={26} height={26} patternUnits="userSpaceOnUse">
+                        <Path d="M 26 0 L 0 0 0 26" fill="none" stroke={C.cuadricula} strokeWidth={1} />
                     </Pattern>
                 </Defs>
                 <Rect width="100%" height="100%" fill="url(#hojaP)" />
             </Svg>
 
             <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 480, alignSelf: "center", padding: 20, paddingBottom: 24 }}>
-                {/* Titulo + ajustes */}
                 <View className="mb-4 flex-row items-center justify-between">
                     <Text style={{ fontSize: 28, fontWeight: "900", color: C.tinta }}>Tu progreso</Text>
                     <Pressable
@@ -208,7 +195,6 @@ export default function PerfilUsuario() {
                     </Pressable>
                 </View>
 
-                {/* Nivel */}
                 <ConSombra className="mb-6">
                     <View className="flex-row items-center gap-4 rounded-2xl border-2 p-4" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
                         <Anillo nivel={nivel} avance={avance} />
@@ -227,7 +213,6 @@ export default function PerfilUsuario() {
                 {/* Rangos */}
                 <Text className="mb-3 text-xl" style={{ fontWeight: "900", color: C.tinta }}>Rangos</Text>
                 <View className="mb-6 flex-row justify-between">
-                    {/* linea punteada detras de los circulos */}
                     <View style={{ position: "absolute", top: 21, left: "12%", right: "12%", borderTopWidth: 2, borderStyle: "dashed", borderColor: C.verde }} />
                     {rangosV.map((r) => {
                         const paso = r.nv - 1 < actualR;
@@ -349,7 +334,6 @@ export default function PerfilUsuario() {
                 </View>
             </ScrollView>
 
-            {/* Ajustes: editar nombre, probar notificacion y cerrar sesion */}
             <Modal visible={ajustesV} transparent animationType="fade" onRequestClose={() => setAjustesV(false)}>
                 <Pressable className="flex-1 justify-center p-6" style={{ backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setAjustesV(false)}>
                     <Pressable onPress={() => { }} style={{ width: "100%", maxWidth: 420, alignSelf: "center" }}>
@@ -364,7 +348,6 @@ export default function PerfilUsuario() {
 
                                 <Text className="mb-1 font-bold" style={{ color: C.tinta }}>Correo</Text>
                                 <Text className="mb-4" style={{ color: C.gris }}>{correo}</Text>
-
                                 <Text className="mb-1 font-bold" style={{ color: C.tinta }}>Nombre</Text>
                                 <TextInput
                                     className="mb-4 rounded-xl border-2 p-3"
@@ -374,8 +357,6 @@ export default function PerfilUsuario() {
                                 />
 
                                 {mensaje !== "" && <Text className="mb-3" style={{ color: C.verde }}>{mensaje}</Text>}
-
-                                {/* el color va en un View hijo: con NativeWind el Pressable no pinta el fondo */}
                                 <Pressable className="mb-3" onPress={guardar}>
                                     <ConSombra radio={14}>
                                         <View className="items-center rounded-2xl border-2 p-3" style={{ backgroundColor: C.boton, borderColor: C.tinta }}>

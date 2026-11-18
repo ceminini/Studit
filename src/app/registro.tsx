@@ -3,22 +3,12 @@ import { router } from 'expo-router';
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from "@/components/Texto";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, Path, Pattern, Rect } from 'react-native-svg';
+import { C } from "@/lib/colores";
 
-// Diseno (misma paleta que inicio.tsx)
-const C = {
-    papel: "#F7F5EE",
-    cuadricula: "#E9E6DA",
-    tinta: "#1A1A1A",
-    gris: "#6B6B66",
-    boton: "#A6E0D7",
-    sombra: "#2E6B5E", // turquesa oscuro para la sombra del boton
-    campo: "#EEF8F5",
-    coral: "#E8664A",
-    blanco: "#FFFFFF",
-};
 
 export default function Registro() {
     const [usuario, setUsuario] = useState('');
@@ -57,15 +47,15 @@ export default function Registro() {
             {/* Fondo cuadriculado */}
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
                 <Defs>
-                    <Pattern id="hoja" width={22} height={22} patternUnits="userSpaceOnUse">
-                        <Path d="M 22 0 L 0 0 0 22" fill="none" stroke={C.cuadricula} strokeWidth={1} />
+                    <Pattern id="hoja" width={26} height={26} patternUnits="userSpaceOnUse">
+                        <Path d="M 26 0 L 0 0 0 26" fill="none" stroke={C.cuadricula} strokeWidth={1} />
                     </Pattern>
                 </Defs>
                 <Rect width="100%" height="100%" fill="url(#hoja)" />
             </Svg>
 
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: "center", width: "100%", maxWidth: 420, alignSelf: "center", padding: 20 }}>
-                {/* Logo con subrayado turquesa */}
+                {/* subrayado  */}
                 <View className="mb-10 items-center">
                     <View>
                         <View className="absolute left-0 right-0" style={{ bottom: 6, height: 22, backgroundColor: C.boton }} />

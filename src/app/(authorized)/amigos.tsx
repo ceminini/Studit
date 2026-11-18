@@ -2,10 +2,12 @@ import { auth, db } from "@/lib/firebase";
 import { useFocusEffect } from "expo-router";
 import { arrayUnion, collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
+import { Text, TextInput } from "@/components/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { C } from "@/lib/colores";
+import Fondo from "@/components/Fondo";
 
-const C = { papel: "#F7F5EE", tinta: "#1A1A1A", gris: "#6B6B66", verde: "#2E6B5E", boton: "#A6E0D7", coral: "#E8664A", blanco: "#FFFFFF" };
 
 type amigo = { uid: string; nombre: string; usuario: string; xp: number };
 
@@ -49,6 +51,7 @@ export default function Amigos() {
 
     return (
         <SafeAreaView className="flex-1" edges={["top"]} style={{ backgroundColor: C.papel }}>
+            <Fondo />
             <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 480, alignSelf: "center", padding: 20 }}>
                 <Text className="mb-5 text-4xl" style={{ fontWeight: "900", color: C.tinta }}>Amigos</Text>
 

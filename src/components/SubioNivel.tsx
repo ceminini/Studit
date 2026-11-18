@@ -1,19 +1,12 @@
 import { subida, tituloDe, XP_NIVEL } from "@/lib/nivel";
 import { router } from "expo-router";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/Texto";
 import Svg, { Polygon } from "react-native-svg";
+import { C as paleta } from "@/lib/colores";
 
-const C = {
-    fondo: "#BDE9E2",
-    rayo: "#A6E0D7",
-    tinta: "#1A1A1A",
-    gris: "#3F4A48",
-    verde: "#2E6B5E",
-    coral: "#F07A5A",
-    blanco: "#FFFFFF",
-};
+const C = { ...paleta, fondo: "#BDE9E2", rayo: paleta.boton };
 
-// Rayos que salen del centro (x 50, y 38 de un cuadro de 100x100)
 const RAYOS = 18;
 const rayos = Array.from({ length: RAYOS }, (_, i) => {
     const a1 = (i / RAYOS) * 2 * Math.PI;
@@ -22,13 +15,13 @@ const rayos = Array.from({ length: RAYOS }, (_, i) => {
     return `50,38 ${punto(a1)} ${punto(a2)}`;
 });
 
-// Papelitos de colores alrededor del circulo
+// color alrededor del circulo
 const PAPELES = [
     { top: "6%", left: "52%", color: C.blanco, giro: "20deg" },
     { top: "11%", left: "10%", color: C.coral, giro: "-25deg" },
-    { top: "14%", left: "84%", color: "#CDBEF2", giro: "30deg" },
+    { top: "14%", left: "84%", color: C.lila, giro: "30deg" },
     { top: "33%", left: "86%", color: C.coral, giro: "-35deg" },
-    { top: "36%", left: "14%", color: "#FBDCCD", giro: "15deg" },
+    { top: "36%", left: "14%", color: C.durazno, giro: "15deg" },
 ] as const;
 
 type props = { datos: subida | null; onCerrar: () => void };
@@ -86,7 +79,7 @@ export default function SubioNivel({ datos, onCerrar }: props) {
                     </View>
 
                     <View>
-                        {/* Boton turquesa oscuro con sombra dura */}
+                        {/* Boton turquesa */}
                         <View>
                             <View className="absolute left-0 right-0 rounded-2xl" style={{ top: 5, bottom: -5, backgroundColor: C.tinta }} />
                             <Pressable onPress={onCerrar}>

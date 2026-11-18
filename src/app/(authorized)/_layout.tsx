@@ -1,16 +1,12 @@
 import { Tabs } from "expo-router/js-tabs";
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { Text } from "@/components/Texto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
+import { C } from "@/lib/colores";
 
-const C = {
-    papel: "#F7F5EE",
-    tinta: "#1A1A1A",
-    gris: "#6B6B66",
-    boton: "#A6E0D7",
-};
 
-// iconos dibujados con svg (trazo como en el mockup)
+// iconos dibujados con svg 
 const trazo = { fill: "none", stroke: C.tinta, strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 const ICONOS: Record<string, React.ReactNode> = {
     inicio: (
@@ -51,7 +47,6 @@ const ICONOS: Record<string, React.ReactNode> = {
     ),
 };
 
-// el icono activo va dentro de la "pastilla" turquesa
 const Icono = ({ nombre, activo }: { nombre: string; activo: boolean }) => (
     <View
         style={{
@@ -65,7 +60,7 @@ const Icono = ({ nombre, activo }: { nombre: string; activo: boolean }) => (
             backgroundColor: activo ? C.boton : "transparent",
         }}
     >
-        <Svg width={22} height={22} viewBox="0 0 24 24">{ICONOS[nombre]}</Svg>
+        <Svg width={26} height={26} viewBox="0 0 24 24">{ICONOS[nombre]}</Svg>
     </View>
 );
 
@@ -76,13 +71,10 @@ export default function TabsLayout() {
             screenOptions={({ route }) => ({
                 headerShown: false,
                 tabBarIcon: ({ focused }) => <Icono nombre={route.name} activo={focused} />,
-                // la caja del icono trae 24x24 por defecto y la pastilla mide 46x32: si no se agranda, queda descuadrada
                 tabBarIconStyle: { width: 46, height: 32 },
-                // la palabra del tab activo va en negrita
                 tabBarLabel: ({ focused, children }) => (
                     <Text style={{ fontSize: 12, marginTop: 4, color: C.tinta, fontWeight: focused ? "800" : "500" }}>{children}</Text>
                 ),
-                // insets.bottom = alto de la barra del celular (Samsung, gestos, iPhone); se suma para que no la tape
                 tabBarStyle: {
                     backgroundColor: C.papel,
                     borderTopWidth: 2,

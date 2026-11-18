@@ -6,32 +6,22 @@ import SubioNivel from "@/components/SubioNivel";
 import { router, useFocusEffect } from "expo-router";
 import { collection, doc, getDoc, getDocs, increment, updateDoc } from "firebase/firestore";
 import { ReactNode, useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { Lucide } from "@react-native-vector-icons/lucide";
+import { C } from "@/lib/colores";
 
 type ramo = { id: string; nombres: string; color: string; meta?: number };
 type sesion = { ramoId: string; minutos: number; dia: string };
 type tarea = { id: string; titulo: string; ramoNombre: string; ramoId: string; fecha: string; listo: boolean; xp: number; hora?: string };
 
-// Diseno (misma paleta que tareas.tsx y materias.tsx)
-const C = {
-    papel: "#F7F5EE",
-    cuadricula: "#E9E6DA",
-    tinta: "#1A1A1A",
-    gris: "#6B6B66",
-    verde: "#2E6B5E",
-    boton: "#A6E0D7",
-    coral: "#E8664A",
-    durazno: "#FBDCCD",
-    blanco: "#FFFFFF",
-};
 
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 
-// niveles
+// niveles e insignias
 const XP_NIVEL = 250;
 const TITULOS = ["Recién llegado", "Aprendiz", "Curioso", "Constante", "Ratón de biblioteca", "Cerebrito", "Leyenda del ramo"];
 const META_POMODOROS = 2;
@@ -48,7 +38,7 @@ const lunes = () => {
     return formatear(d);
 };
 
-// semana del semestre: el 1er semestre parte en marzo y el 2do en agosto (igual que en materias.tsx)
+// semana del semestre
 const semanaSemestre = () => {
     const ahora = new Date();
     const inicio = new Date(ahora.getFullYear(), ahora.getMonth() >= 6 ? 7 : 2, 1);
@@ -65,7 +55,7 @@ const vence = (f: string) => {
     return `vence el ${DIAS_CORTOS[d.getDay()]} ${d.getDate()}`;
 };
 
-// comentario de la tarjeta segun la meta semanal del ramo
+
 const comentario = (minutos: number, metaHoras: number) => {
     const avance = minutos / (metaHoras * 60);
     if (avance >= 1) return "¡vas volando!";
@@ -89,7 +79,7 @@ export default function Inicio() {
     const [ultimoD, setUltimoD] = useState("");
     const [ramos, setRamos] = useState<ramo[]>([]);
     const [sesiones, setSesiones] = useState<sesion[]>([]);
-    const [tareaM, setTareaM] = useState<tarea | null>(null); // la entrega de "Misiones de hoy"
+    const [tareaM, setTareaM] = useState<tarea | null>(null); // la entrega de misiones 
     const [nivelN, setNivelN] = useState<subida | null>(null); // pantalla de subir de nivel
 
 
@@ -113,7 +103,7 @@ export default function Inicio() {
                 const snapS = await getDocs(collection(db, "usuarios", uid, "sesion"));
                 setSesiones(snapS.docs.map((d) => d.data() as sesion));
 
-                // la proxima entrega pendiente (desde hoy en adelante)
+
                 const snapT = await getDocs(collection(db, "usuarios", uid, "tareas"));
                 const pendiente = snapT.docs
                     .map((d) => ({ id: d.id, ...d.data() }) as tarea)
@@ -125,7 +115,7 @@ export default function Inicio() {
         }, [])
     );
 
-    // marcar la entrega desde el inicio (misma logica que selecc en tareas.tsx)
+
     const marcarTarea = async () => {
         if (!tareaM) return;
         const uid = auth.currentUser!.uid;
@@ -149,7 +139,7 @@ export default function Inicio() {
     const minutosSemana = (id: string) =>
         sesiones.filter((s) => s.ramoId === id && s.dia >= desdeLunes).reduce((suma, s) => suma + (s.minutos ?? 0), 0);
 
-    // mision de pomodoros: el ramo mas atrasado respecto a su meta semanal
+    // mision de pomodoros
     const ramoM = [...ramos].sort(
         (a, b) => minutosSemana(a.id) / ((a.meta ?? 4) * 60) - minutosSemana(b.id) / ((b.meta ?? 4) * 60)
     )[0];
@@ -185,18 +175,18 @@ export default function Inicio() {
 
     return (
         <SafeAreaView className="flex-1" edges={["top"]} style={{ backgroundColor: C.papel }}>
-            {/* Fondo cuadriculado */}
+            {/* Fondo cuadriculado con svg*/}
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
                 <Defs>
-                    <Pattern id="hoja" width={22} height={22} patternUnits="userSpaceOnUse">
-                        <Path d="M 22 0 L 0 0 0 22" fill="none" stroke={C.cuadricula} strokeWidth={1} />
+                    <Pattern id="hoja" width={26} height={26} patternUnits="userSpaceOnUse">
+                        <Path d="M 26 0 L 0 0 0 26" fill="none" stroke={C.cuadricula} strokeWidth={1} />
                     </Pattern>
                 </Defs>
                 <Rect width="100%" height="100%" fill="url(#hoja)" />
             </Svg>
 
             <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 480, alignSelf: "center", padding: 20, paddingBottom: 24 }}>
-                {/* Encabezado: logo, racha y perfil */}
+
                 <View className="mb-3 flex-row items-center justify-between">
                     <View>
                         <View className="absolute bottom-0 left-0 right-0 h-3" style={{ backgroundColor: C.boton }} />
@@ -210,8 +200,6 @@ export default function Inicio() {
 
                 <Text className="mt-2 italic" style={{ color: C.verde }}>{fechaTxt}</Text>
                 <Text className="mb-5 text-2xl" style={{ fontWeight: "900", color: C.tinta }}>HOLA{nombre ? `, ${nombre.toUpperCase()}` : ""}</Text>
-
-                {/* Nivel */}
                 <ConSombra className="mb-8">
                     <View className="flex-row items-center gap-4 rounded-2xl border-2 p-4" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
                         <View className="h-16 w-16 items-center justify-center rounded-xl border-2" style={{ backgroundColor: C.boton, borderColor: C.tinta }}>
@@ -295,7 +283,6 @@ export default function Inicio() {
                     </ScrollView>
                 )}
 
-                {/* Boton pomodoro: va dentro del scroll para que no tape las misiones */}
                 <ConSombra className="mt-8">
                     <Pressable
                         onPress={() => router.push("/pomodoro")}

@@ -3,13 +3,15 @@ import { cancelarRecordatorio, programarRecordatorio, programarR } from "@/lib/n
 import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, increment, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
 import { ReactNode, useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Platform } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View, Platform } from "react-native";
+import { Text, TextInput } from "@/components/Texto";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { subida, subioN } from "@/lib/nivel";
 import SubioNivel from "@/components/SubioNivel";
+import { C } from "@/lib/colores";
 
 LocaleConfig.locales.es = {
     today: "Hoy",
@@ -21,7 +23,7 @@ LocaleConfig.locales.es = {
 LocaleConfig.defaultLocale = "es";
 
 type ramo = { id: string; nombres: string; color: string };
-type tarea = { id: string; titulo: string; ramoNombre: string; ramoId: string; color: string; fecha: string; listo: boolean; xp: number; hora?: string, notifId?: string };
+type tarea = { id: string; titulo: string; ramoNombre: string; ramoId: string; color: string; fecha: string; listo: boolean; xp: number; hora?: string, notifId?: string; descripcion?: string };
 type rutina = { id: string; titulo: string; tipo: string; inicio: string; fin: string; dias: number[]; hechos: string[]; xp: number; notifIds?: string[] };
 
 
@@ -31,18 +33,6 @@ const fecha = () => {
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
 };
 
-//Diseno 
-const C = {
-    papel: "#FFFFFF",
-    cuadricula: "#E9E6DA",
-    tinta: "#1A1A1A",
-    gris: "#6B6B66",
-    verde: "#2E6B5E",
-    boton: "#A6E0D7",
-    coral: "#E8664A",
-    durazno: "#FBDCCD",
-    blanco: "#FFFFFF",
-};
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -65,6 +55,8 @@ export default function Tareas() {
     const [tareas, setTareas] = useState<tarea[]>([]);
     const [ramoE, setRamoE] = useState<ramo | null>(null);
     const [titulo, setTitulo] = useState("");
+    const [descripcion, setDescripcion] = useState("");
+    const [tareaE, setTareaE] = useState<tarea | null>(null);
     const [diaS, setDiaS] = useState(fecha());
     const [hora, setHora] = useState("");
     const [error, setError] = useState("");
@@ -105,8 +97,25 @@ export default function Tareas() {
         if (!ramoE)
             return setError("Escoge un ramo");
         try {
+            if (tareaE) {
+                if (tareaE.notifId) await cancelarRecordatorio(tareaE.notifId);
+                const notifE = await programarRecordatorio(titulo.trim(), tareaE.fecha, hora.trim());
+                await updateDoc(doc(db, "usuarios", uid, "tareas", tareaE.id), {
+                    titulo: titulo.trim(),
+                    descripcion: descripcion.trim(),
+                    ramoId: ramoE.id,
+                    ramoNombre: ramoE.nombres,
+                    color: ramoE.color,
+                    hora: hora.trim(),
+                    notifId: notifE ?? null,
+                });
+                cerrarF();
+                cargar();
+                return;
+            }
             const nuevaT = await addDoc(tareasR, {
                 titulo: titulo.trim(),
+                descripcion: descripcion.trim(),
                 ramoId: ramoE.id,
                 xp: 100,  //fijo por ahora, corregir
                 ramoNombre: ramoE.nombres,
@@ -118,14 +127,31 @@ export default function Tareas() {
             });
             const notifId = await programarRecordatorio(titulo.trim(), diaS, hora.trim());
             if (notifId) await updateDoc(nuevaT, { notifId });
-            setTitulo("");
-            setHora("");
-            setError("");
-            setFormAbierto(false);
+            cerrarF();
             cargar();
         } catch (e: any) {
             setError(e.code);
         }
+    };
+
+    const editarT = (t: tarea) => {
+        setTareaE(t);
+        setTitulo(t.titulo);
+        setDescripcion(t.descripcion ?? "");
+        setHora(t.hora ?? "");
+        setRamoE(ramos.find((r) => r.id === t.ramoId) ?? null);
+        setError("");
+        setVista("estudio");
+        setFormAbierto(true);
+    };
+
+    const cerrarF = () => {
+        setTareaE(null);
+        setTitulo("");
+        setDescripcion("");
+        setHora("");
+        setError("");
+        setFormAbierto(false);
     };
     const agregarR = async () => {
         if (!titulo.trim()) return setError("Escribe una actividad");
@@ -203,6 +229,7 @@ export default function Tareas() {
     const borrar = async (t: tarea) => {
         if (t.notifId) await cancelarRecordatorio(t.notifId);
         await deleteDoc(doc(db, "usuarios", uid, "tareas", t.id));
+        if (t.listo) await updateDoc(doc(db, "usuarios", uid), { xp: increment(-t.xp) });
         cargar();
     };
 
@@ -222,6 +249,7 @@ export default function Tareas() {
     const borrarR = async (r: rutina) => {
         for (const id of r.notifIds ?? []) await cancelarRecordatorio(id);
         await deleteDoc(doc(db, "usuarios", uid, "rutina", r.id));
+        if (r.hechos.length > 0) await updateDoc(doc(db, "usuarios", uid), { xp: increment(-r.xp * r.hechos.length) });
         cargar();
     };
 
@@ -339,8 +367,8 @@ export default function Tareas() {
             {/* fondo*/}
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
                 <Defs>
-                    <Pattern id="hoja" width={22} height={22} patternUnits="userSpaceOnUse">
-                        <Path d="M 22 0 L 0 0 0 22" fill="none" stroke={C.cuadricula} strokeWidth={1} />
+                    <Pattern id="hoja" width={26} height={26} patternUnits="userSpaceOnUse">
+                        <Path d="M 26 0 L 0 0 0 26" fill="none" stroke={C.cuadricula} strokeWidth={1} />
                     </Pattern>
                 </Defs>
                 <Rect width="100%" height="100%" fill="url(#hoja)" />
@@ -356,7 +384,7 @@ export default function Tareas() {
                     </View>
                     <ConSombra radio={14}>
                         <Pressable
-                            onPress={() => { setError(""); setFormAbierto(true); }}
+                            onPress={() => { cerrarF(); setFormAbierto(true); }}
                             className="h-14 w-14 items-center justify-center border-2"
                             style={{ borderRadius: 14, backgroundColor: C.boton, borderColor: C.tinta }}
                         >
@@ -365,7 +393,7 @@ export default function Tareas() {
                     </ConSombra>
                 </View>
 
-                {/* Estudio, Rutinas */}
+                {/* Estudio*/}
                 <View className="mb-4 flex-row rounded-2xl border-2 p-1.5" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
                     {(["estudio", "rutinas"] as const).map((v) => (
                         <Pressable
@@ -455,14 +483,14 @@ export default function Tareas() {
                             )}
                         </View>
 
-                        {diaD.length === 0 && (
+                        {diaPen.length === 0 && (
                             <View className="items-center rounded-2xl border-2 border-dashed p-6" style={{ borderColor: C.gris }}>
-                                <Text style={{ color: C.gris }}>Nada para este día</Text>
+                                <Text style={{ color: C.gris }}>{diaD.length > 0 ? `Todo listo, ${diaD.length} ${diaD.length === 1 ? "entrega hecha" : "entregas hechas"}` : "Nada para este día"}</Text>
                                 <Text className="text-xs" style={{ color: C.gris }}>Toca + para agregar meta</Text>
                             </View>
                         )}
 
-                        {diaD.map((t) => (
+                        {diaPen.map((t) => (
                             <View key={t.id} className="mb-3 flex-row items-center gap-3 rounded-2xl border-2 p-3" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
                                 <Pressable
                                     onPress={() => selecc(t)}
@@ -476,6 +504,9 @@ export default function Tareas() {
                                     <Text className={`text-base font-bold ${t.listo ? "line-through" : ""}`} style={{ color: t.listo ? C.gris : C.tinta }}>
                                         {t.titulo}
                                     </Text>
+                                    {t.descripcion ? (
+                                        <Text className="text-sm" style={{ color: C.gris }}>{t.descripcion}</Text>
+                                    ) : null}
                                     <View className="mt-1 flex-row items-center gap-2">
                                         <View className="rounded-md px-2 py-0.5" style={{ backgroundColor: t.color }}>
                                             <Text className="text-xs font-bold" style={{ color: C.tinta }}>{t.ramoNombre}</Text>
@@ -488,9 +519,14 @@ export default function Tareas() {
                                     <View className="rounded-full border px-2 py-0.5" style={{ backgroundColor: C.durazno, borderColor: C.coral }}>
                                         <Text className="text-xs font-bold" style={{ color: C.coral }}>+{t.xp} XP</Text>
                                     </View>
-                                    <Pressable onPress={() => borrar(t)} hitSlop={8}>
-                                        <Text className="text-xs underline" style={{ color: C.gris }}>Quitar</Text>
-                                    </Pressable>
+                                    <View className="flex-row gap-3">
+                                        <Pressable onPress={() => editarT(t)} hitSlop={8}>
+                                            <Text className="text-xs underline" style={{ color: C.verde }}>Editar</Text>
+                                        </Pressable>
+                                        <Pressable onPress={() => borrar(t)} hitSlop={8}>
+                                            <Text className="text-xs underline" style={{ color: C.gris }}>Quitar</Text>
+                                        </Pressable>
+                                    </View>
                                 </View>
                             </View>
                         ))}
@@ -499,8 +535,8 @@ export default function Tareas() {
             </ScrollView>
 
             {/* + para agregar */}
-            <Modal visible={formAbierto} transparent animationType="fade" onRequestClose={() => setFormAbierto(false)}>
-                <Pressable className="flex-1 justify-end" style={{ backgroundColor: "rgba(0,0,0,0.35)" }} onPress={() => setFormAbierto(false)}>
+            <Modal visible={formAbierto} transparent animationType="fade" onRequestClose={cerrarF}>
+                <Pressable className="flex-1 justify-end" style={{ backgroundColor: "rgba(0,0,0,0.35)" }} onPress={cerrarF}>
                     <Pressable
                         onPress={() => { }}
                         className="w-full rounded-t-3xl border-2 p-6"
@@ -508,7 +544,7 @@ export default function Tareas() {
                     >
                         {vista === "estudio" ? (
                         <>
-                        <Text className="text-base italic" style={{ color: C.verde }}>nueva entrega</Text>
+                        <Text className="text-base italic" style={{ color: C.verde }}>{tareaE ? "editar entrega" : "nueva entrega"}</Text>
                         <Text className="mb-4 text-2xl" style={{ fontWeight: "900", color: C.tinta }}>Para el {tituloDia}</Text>
 
                         <TextInput
@@ -517,6 +553,14 @@ export default function Tareas() {
                             placeholder="Ej: Informe de normalización"
                             value={titulo}
                             onChangeText={setTitulo}
+                        />
+                        <TextInput
+                            className="mb-3 rounded-xl border-2 p-3"
+                            style={{ backgroundColor: C.blanco, borderColor: C.tinta, minHeight: 70, textAlignVertical: "top" }}
+                            placeholder="Descripción (opcional)"
+                            value={descripcion}
+                            onChangeText={setDescripcion}
+                            multiline
                         />
                         {Platform.OS === "web" ? (
                             <TextInput
@@ -557,7 +601,7 @@ export default function Tareas() {
 
                         <ConSombra radio={16} className="mb-4">
                             <Pressable onPress={agregarT} className="items-center rounded-2xl border-2 py-3.5" style={{ backgroundColor: C.boton, borderColor: C.tinta }}>
-                                <Text className="text-lg font-bold" style={{ color: C.tinta }}>+ Agregar entrega</Text>
+                                <Text className="text-lg font-bold" style={{ color: C.tinta }}>{tareaE ? "Guardar cambios" : "+ Agregar entrega"}</Text>
                             </Pressable>
                         </ConSombra>
                         </>
@@ -616,7 +660,7 @@ export default function Tareas() {
                         </ConSombra>
                         </>
                         )}
-                        <Pressable onPress={() => setFormAbierto(false)} className="items-center">
+                        <Pressable onPress={cerrarF} className="items-center">
                             <Text className="underline" style={{ color: C.gris }}>Cancelar</Text>
                         </Pressable>
                     </Pressable>

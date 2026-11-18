@@ -2,9 +2,11 @@ import { auth, db } from "@/lib/firebase";
 import { router } from "expo-router";
 import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from "firebase/firestore";
 import { ReactNode, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "@/components/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Defs, Path, Pattern, Rect } from "react-native-svg";
+import { C } from "@/lib/colores";
 
 
 type ramo = { id: string, nombres: string, color: string, minutos?: number, meta?: number }
@@ -22,17 +24,6 @@ const colores = [
 ];
 const horas = (m: number) => `${Math.floor(m / 60)}h ${m % 60}min`;
 
-//DISENO
-const C = {
-    papel: "#F7F5EE",
-    cuadricula: "#E9E6DA",
-    tinta: "#1A1A1A",
-    gris: "#6B6B66",
-    verde: "#2E6B5E",
-    boton: "#A6E0D7",
-    input: "#EEF7F5",
-    blanco: "#FFFFFF",
-};
 const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 
 const formatear = (d: Date) =>
@@ -166,8 +157,8 @@ export default function Materias() {
             {/* Fondo*/}
             <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
                 <Defs>
-                    <Pattern id="hoja" width={22} height={22} patternUnits="userSpaceOnUse">
-                        <Path d="M 22 0 L 0 0 0 22" fill="none" stroke={C.cuadricula} strokeWidth={1} />
+                    <Pattern id="hoja" width={26} height={26} patternUnits="userSpaceOnUse">
+                        <Path d="M 26 0 L 0 0 0 26" fill="none" stroke={C.cuadricula} strokeWidth={1} />
                     </Pattern>
                 </Defs>
                 <Rect width="100%" height="100%" fill="url(#hoja)" />
@@ -327,7 +318,7 @@ export default function Materias() {
                                 <Text className="underline" style={{ color: C.gris }}>Cancelar</Text>
                             </Pressable>
                             <Pressable onPress={() => borrarR(idEdit)}>
-                                <Text className="underline" style={{ color: "#C0392B" }}>Quitar ramo</Text>
+                                <Text className="underline" style={{ color: C.coral }}>Quitar ramo</Text>
                             </Pressable>
                         </View>
                     )}

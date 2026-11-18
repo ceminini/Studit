@@ -2,7 +2,8 @@ import { auth, db } from "@/lib/firebase";
 import { addDoc, collection, doc, getDocs, increment, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useCallback, useEffect, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/Texto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, Path, Pattern, Rect } from "react-native-svg";
 import { Lucide } from "@react-native-vector-icons/lucide";
@@ -10,20 +11,8 @@ import { actualizarR } from "@/lib/racha";
 import { hoy, ayer } from "@/lib/fecha";
 import { subida, subioN } from "@/lib/nivel";
 import SubioNivel from "@/components/SubioNivel";
+import { C } from "@/lib/colores";
 
-// diseño
-const C = {
-    fondo: "#F8FAF7",
-    cuadricula: "#9CD0C9",
-    verde: "#2E6B5E",
-    pista: "#C6E6E0",
-    puntos: "#9BBFB8",
-    tinta: "#1A1A1A",
-    gris: "#5B6B68",
-    coral: "#F07A5A",
-    boton: "#A6E0D7",
-    blanco: "#FFFFFF",
-};
 
 // ANILLO 
 const TAM = 250;
@@ -44,7 +33,7 @@ const MIN_FOCO = 10;
 const MAX_FOCO = 60;
 const PASO = 10;
 const xpDe = (min: number) => (min <= 20 ? min : 20 + Math.round((min - 20) * 1.5));//EX POR CADA 10 MIN
-// descansos: corto despues de cada pomodoro, largo cada 4
+// descansos
 const DESCANSO = 5 * 60;
 const DESCANSO_LARGO = 15 * 60;
 const CADA = 4;
@@ -62,8 +51,8 @@ export default function Pomodoro() {
     const [ramos, setRamos] = useState<ramo[]>([]);
     const [ramoE, setRamoE] = useState<ramo | null>(null);
     const [menuR, setMenuR] = useState(false);   // menu plegable de ramos abierto o cerrado
-    const [avisoR, setAvisoR] = useState(false); // ventana flotante "elige un ramo"
-    const [tareasP, setTareasP] = useState<tarea[]>([]); // entregas pendientes, para el titulo
+    const [avisoR, setAvisoR] = useState(false); // ventana flotante 
+    const [tareasP, setTareasP] = useState<tarea[]>([]); // entregas pendientes
     const [mensaje, setMensaje] = useState("");
     const [horaF, setHoraF] = useState<number | null>(null);
     const [nivelN, setNivelN] = useState<subida | null>(null); // pantalla de subir de nivel
@@ -405,8 +394,6 @@ export default function Pomodoro() {
                         </Text>
                     </View>
                 </View>
-
-                {/* Elegir tiempo con - y +: solo antes de partir */}
                 {!empezo && modo === "foco" && (
                     <View className="mb-6 flex-row items-center justify-between rounded-2xl border-2 px-3 py-3" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
                         {botonTiempo(-PASO)}
@@ -420,8 +407,6 @@ export default function Pomodoro() {
                 )}
 
                 <View className="flex-1" />
-
-                {/* Boton principal: color del ramo, nada de negro */}
                 <View className="mb-4">
                     <View className="absolute inset-0 rounded-2xl" style={{ backgroundColor: C.tinta, transform: [{ translateX: 3 }, { translateY: 4 }] }} />
                     <Pressable

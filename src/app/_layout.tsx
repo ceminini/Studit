@@ -4,10 +4,13 @@ import { useState, useEffect } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { Auth } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useFonts } from "expo-font";
+import { FUENTES } from "@/components/Texto";
 
 export default function RootLayout() {
   const [usuario, setUsuario] = useState<User | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [fuenteL] = useFonts(FUENTES);
 
   useEffect(() => {
     const offline = onAuthStateChanged(auth, (user)=> {
@@ -18,7 +21,7 @@ export default function RootLayout() {
 
 }, []);
 
-if (cargando) return null;
+if (cargando || !fuenteL) return null;
 const conectado = usuario !== null;
 
 return (
