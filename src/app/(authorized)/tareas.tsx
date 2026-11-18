@@ -311,6 +311,7 @@ export default function Tareas() {
 
     const diaD = tareas.filter((t) => t.fecha === diaS);
     const diaPen = diaD.filter((t) => !t.listo);
+    const diaO = [...diaPen, ...diaD.filter((t) => t.listo)];
     const xpDia = diaPen.reduce((suma, t) => suma + t.xp, 0);
     const entregaM = tareas.filter((t) => t.fecha.startsWith(mes) && !t.listo).length;
 
@@ -483,14 +484,14 @@ export default function Tareas() {
                             )}
                         </View>
 
-                        {diaPen.length === 0 && (
+                        {diaD.length === 0 && (
                             <View className="items-center rounded-2xl border-2 border-dashed p-6" style={{ borderColor: C.gris }}>
-                                <Text style={{ color: C.gris }}>{diaD.length > 0 ? `Todo listo, ${diaD.length} ${diaD.length === 1 ? "entrega hecha" : "entregas hechas"}` : "Nada para este día"}</Text>
+                                <Text style={{ color: C.gris }}>Nada para este día</Text>
                                 <Text className="text-xs" style={{ color: C.gris }}>Toca + para agregar meta</Text>
                             </View>
                         )}
 
-                        {diaPen.map((t) => (
+                        {diaO.map((t) => (
                             <View key={t.id} className="mb-3 flex-row items-center gap-3 rounded-2xl border-2 p-3" style={{ backgroundColor: C.blanco, borderColor: C.tinta }}>
                                 <Pressable
                                     onPress={() => selecc(t)}
